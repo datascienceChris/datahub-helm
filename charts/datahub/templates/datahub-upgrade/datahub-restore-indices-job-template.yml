@@ -31,6 +31,12 @@ spec:
             {{- toYaml . | nindent 12 }}
         {{- end }}
           volumes:
+            {{- with .Values.global.credentialsAndCertsSecrets }}
+            - name: datahub-certs-dir
+              secret:
+                defaultMode: 0444
+                secretName: {{ .name }}
+            {{- end }}
           {{- with .Values.datahubUpgrade.extraVolumes }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -38,6 +44,10 @@ spec:
           securityContext:
             runAsUser: 1000
             fsGroup: 1000
+          initContainers:
+          {{- with .Values.extraInitContainers }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
             - name: datahub-upgrade-job
               image: "{{ .Values.datahubUpgrade.image.repository }}:{{ .Values.datahubUpgrade.image.tag }}"
@@ -46,6 +56,8 @@ spec:
                 - "-u"
                 - "RestoreIndices"
               env:
+                - name: ENTITY_REGISTRY_CONFIG_PATH
+                  value: /datahub/datahub-gms/resources/entity-registry.yml
                 - name: DATAHUB_GMS_HOST
                   value: {{ printf "%s-%s" .Release.Name "datahub-gms" }}
                 - name: DATAHUB_GMS_PORT
@@ -107,10 +119,29 @@ spec:
                       name: "{{ .Values.global.neo4j.password.secretRef }}"
                       key: "{{ .Values.global.neo4j.password.secretKey }}"
                 {{- end }}
+                {{- if .Values.global.springKafkaConfigurationOverrides }}
+                {{- range $configName, $configValue := .Values.global.springKafkaConfigurationOverrides }}
+                - name: SPRING_KAFKA_PROPERTIES_{{ $configName | replace "." "_" | upper }}
+                  value: {{ $configValue }}
+                {{- end }}
+                {{- end }}
+                {{- if .Values.global.credentialsAndCertsSecrets }}
+                {{- range $envVarName, $envVarValue := .Values.global.credentialsAndCertsSecrets.secureEnv }}
+                - name: SPRING_KAFKA_PROPERTIES_{{ $envVarName | replace "." "_" | upper }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $.Values.global.credentialsAndCertsSecrets.name }}
+                      key: {{ $envVarValue }}
+                {{- end }}
+                {{- end }}
               {{- with .Values.datahubUpgrade.extraEnvs }}
                 {{- toYaml . | nindent 16 }}
               {{- end }}
               volumeMounts:
+              {{- with .Values.global.credentialsAndCertsSecrets }}
+                - name: datahub-certs-dir
+                  mountPath: {{ .path | default "/mnt/certs" }}
+              {{- end }}
               {{- with .Values.datahubUpgrade.extraVolumeMounts }}
                 {{- toYaml . | nindent 16 }}
               {{- end }}
@@ -121,4 +152,16 @@ spec:
                 requests:
                   cpu: 300m
                   memory: 256Mi
+          {{- with .Values.datahubUpgrade.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.datahubUpgrade.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.datahubUpgrade.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 {{- end -}}

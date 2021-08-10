@@ -38,12 +38,18 @@ spec:
           securityContext:
             runAsUser: 1000
             fsGroup: 1000
+          initContainers:
+          {{- with .Values.extraInitContainers }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
             - name: datahub-upgrade-job
               image: "{{ .Values.datahubUpgrade.image.repository }}:{{ .Values.datahubUpgrade.image.tag }}"
               imagePullPolicy: {{ .Values.datahubUpgrade.imagePullPolicy | default "Always" }}
               args: [ "-u", "NoCodeDataMigrationCleanup" ]
               env:
+                - name: ENTITY_REGISTRY_CONFIG_PATH
+                  value: /datahub/datahub-gms/resources/entity-registry.yml
                 - name: DATAHUB_GMS_HOST
                   value: {{ printf "%s-%s" .Release.Name "datahub-gms" }}
                 - name: DATAHUB_GMS_PORT
@@ -119,4 +125,16 @@ spec:
                 requests:
                   cpu: 300m
                   memory: 256Mi
+          {{- with .Values.datahubUpgrade.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.datahubUpgrade.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.datahubUpgrade.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 {{- end -}}
